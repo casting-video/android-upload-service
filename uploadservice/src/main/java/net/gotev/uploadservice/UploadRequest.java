@@ -130,6 +130,17 @@ public abstract class UploadRequest<B extends UploadRequest<B>> {
     }
 
     /**
+     * Sets the flag indicating that the library should not upload over a metered (e.g. cellular) connection.
+     *
+     * @param avoidMeteredNetworks whether to prevent uploading on metered connections
+     * @return self instance
+     */
+    public B setAvoidMeteredNetworks(boolean avoidMeteredNetworks) {
+        params.setAvoidMeteredNetworks(avoidMeteredNetworks);
+        return self();
+    }
+
+    /**
      * Sets the delegate which will receive the events for this upload request.
      * The events will be sent only to the delegate and not in broadcast. Delegate methods will
      * be called on your main thread, so you can safely update your UI from them. If you want to

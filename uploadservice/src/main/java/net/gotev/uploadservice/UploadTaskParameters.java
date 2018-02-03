@@ -20,6 +20,7 @@ public final class UploadTaskParameters implements Parcelable {
     public String serverUrl;
     private int maxRetries = 0;
     public boolean autoDeleteSuccessfullyUploadedFiles = false;
+    private boolean avoidMeteredNetworks = false;
     public UploadNotificationConfig notificationConfig;
     public ArrayList<UploadFile> files = new ArrayList<>();
 
@@ -48,6 +49,7 @@ public final class UploadTaskParameters implements Parcelable {
         parcel.writeString(serverUrl);
         parcel.writeInt(maxRetries);
         parcel.writeByte((byte) (autoDeleteSuccessfullyUploadedFiles ? 1 : 0));
+        parcel.writeByte((byte) (avoidMeteredNetworks ? 1 : 0));
         parcel.writeParcelable(notificationConfig, 0);
         parcel.writeList(files);
     }
@@ -57,6 +59,7 @@ public final class UploadTaskParameters implements Parcelable {
         serverUrl = in.readString();
         maxRetries = in.readInt();
         autoDeleteSuccessfullyUploadedFiles = in.readByte() == 1;
+        avoidMeteredNetworks = in.readByte() == 1;
         notificationConfig = in.readParcelable(UploadNotificationConfig.class.getClassLoader());
         in.readList(files, UploadFile.class.getClassLoader());
     }
@@ -79,4 +82,10 @@ public final class UploadTaskParameters implements Parcelable {
         return this;
     }
 
+    public boolean getAvoidMeteredNetworks() { return avoidMeteredNetworks; }
+
+    public UploadTaskParameters setAvoidMeteredNetworks(boolean avoidMeteredNetworks) {
+        this.avoidMeteredNetworks = avoidMeteredNetworks;
+        return this;
+    }
 }

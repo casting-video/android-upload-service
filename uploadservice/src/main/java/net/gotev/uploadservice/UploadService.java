@@ -4,6 +4,11 @@ import android.app.Notification;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.net.ConnectivityManager;
+import android.net.NetworkCapabilities;
+import android.net.NetworkRequest;
+import android.net.Network;
+import android.os.Build;
 import android.os.IBinder;
 import android.os.PowerManager;
 
@@ -134,6 +139,16 @@ public final class UploadService extends Service {
     private ThreadPoolExecutor uploadThreadPool;
     private Timer idleTimer = null;
 
+    /**
+     * An instance of ConnectivityManager.
+     */
+    private ConnectivityManager connectivityManager;
+
+    /**
+     * An instance of ConnectivityManager.NetworkCallback
+     */
+    private ConnectivityManager.NetworkCallback networkCallback;
+
     protected static String getActionUpload() {
         return NAMESPACE + ACTION_UPLOAD_SUFFIX;
     }
@@ -231,6 +246,33 @@ public final class UploadService extends Service {
                 KEEP_ALIVE_TIME_IN_SECONDS,
                 TimeUnit.SECONDS,
                 uploadTasksQueue);
+
+        // Monitor for network changes
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            NetworkRequest.Builder builder = new NetworkRequest.Builder();
+            builder.addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET);
+            networkCallback = new ConnectivityManager.NetworkCallback() {
+                public void onAvailable(Network network) {
+                    // A network becomes available. When this happens, we need to check if there are any tasks with waitingForNetwork = true,
+                    // and run them.
+                    boolean networkIsNotMetered = connectivityManager
+                        .getNetworkCapabilities(network)
+                        .hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED);
+                    Iterator<String> iterator = uploadTasksMap.keySet().iterator();
+                    while (iterator.hasNext()) {
+                        UploadTask task = uploadTasksMap.get(iterator.next());
+                        if (task.isWaitingForNetwork()
+                            && (networkIsNotMetered || !task.params.getAvoidMeteredNetworks())) {
+                            uploadThreadPool.execute(task);
+                        }
+                    }
+                }
+            };
+            connectivityManager.registerNetworkCallback(builder.build(), networkCallback);
+
+        } else {
+            // TODO API < 21
+        }
     }
 
     @Override
@@ -274,7 +316,9 @@ public final class UploadService extends Service {
                    .setNotificationId(UPLOAD_NOTIFICATION_BASE_ID + notificationIncrementalId);
 
         uploadTasksMap.put(currentTask.params.id, currentTask);
-        uploadThreadPool.execute(currentTask);
+        if (!currentTask.isWaitingForNetwork()) {
+            uploadThreadPool.execute(currentTask);
+        }
 
         return START_STICKY;
     }
@@ -325,6 +369,13 @@ public final class UploadService extends Service {
 
         uploadTasksMap.clear();
         uploadDelegates.clear();
+
+        // unregister network state listener
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            connectivityManager.unregisterNetworkCallback(networkCallback);
+        } else {
+            // TODO API < 21
+        }
 
         Logger.debug(TAG, "UploadService destroyed");
     }
