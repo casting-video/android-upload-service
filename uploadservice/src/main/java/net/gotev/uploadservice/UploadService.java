@@ -140,11 +140,7 @@ public final class UploadService extends Service {
     private ThreadPoolExecutor uploadThreadPool;
     private Timer idleTimer = null;
     private static final Map<String, ConnectivityManager.NetworkCallback> networkCallbacks = new ConcurrentHashMap<>();
-    private Handler handler = new Handler();
-
-    /**
-     * An instance of ConnectivityManager.
-     */
+    private final Handler handler = new Handler();
     private ConnectivityManager connectivityManager = null;
 
     protected static String getActionUpload() {
