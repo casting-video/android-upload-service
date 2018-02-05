@@ -8,8 +8,11 @@ import net.gotev.uploadservice.schemehandlers.SchemeHandler;
 import net.gotev.uploadservice.schemehandlers.SchemeHandlerFactory;
 
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.LinkedHashMap;
+
+import com.google.common.io.ByteStreams;
 
 /**
  * Represents a file to upload.
@@ -22,6 +25,9 @@ public class UploadFile implements Parcelable {
     protected final String path;
     private LinkedHashMap<String, String> properties = new LinkedHashMap<>();
     protected final SchemeHandler handler;
+
+    protected long rangeStart = -1;
+    protected long rangeLength = -1;
 
     /**
      * Creates a new UploadFile.
@@ -49,12 +55,35 @@ public class UploadFile implements Parcelable {
     }
 
     /**
+     * Allows to upload a part of the file. Sets the start and length of the range going to be uploaded.
+     *
+     * @param start start of the range (in bytes)
+     * @param length length of the range (in bytes, -1 means all remaining data)
+     * @param context service context
+     * @throws IndexOutOfBoundsException
+     */
+    public void setRange(long start, long length, Context context) {
+        long fileLength = handler.getLength(context);
+        if (start < 0 || start > fileLength) {
+            throw new IndexOutOfBoundsException("File range start " + start + " is out of bounds 0.." + fileLength);
+        }
+        if (length == -1) {
+            length = fileLength - start;
+        }
+        if (length < 0 || length > fileLength - start) {
+            throw new IndexOutOfBoundsException("File range length " + length + " is out of bounds 0.." + (fileLength - start));
+        }
+        rangeStart = start;
+        rangeLength = length;
+    }
+
+    /**
      * Gets the file length in bytes.
      * @param context service context
      * @return file length
      */
     public long length(Context context) {
-        return handler.getLength(context);
+        return rangeLength >= 0 ? rangeLength : handler.getLength(context);
     }
 
     /**
@@ -64,8 +93,15 @@ public class UploadFile implements Parcelable {
      * @throws FileNotFoundException if the file can't be found at the path specified in the
      * constructor
      */
-    public final InputStream getStream(Context context) throws FileNotFoundException {
-        return handler.getInputStream(context);
+    public final InputStream getStream(Context context) throws FileNotFoundException, IOException {
+        InputStream stream = handler.getInputStream(context);
+        if (rangeStart > 0) {
+            stream.skip(rangeStart);
+        }
+        if (rangeLength != -1) {
+            return ByteStreams.limit(stream, rangeLength);
+        }
+        return stream;
     }
 
     /**
@@ -119,12 +155,16 @@ public class UploadFile implements Parcelable {
     public void writeToParcel(Parcel parcel, int arg1) {
         parcel.writeString(path);
         parcel.writeSerializable(properties);
+        parcel.writeLong(rangeStart);
+        parcel.writeLong(rangeLength);
     }
 
     @SuppressWarnings("unchecked")
     private UploadFile(Parcel in) {
         this.path = in.readString();
         this.properties = (LinkedHashMap<String, String>) in.readSerializable();
+        this.rangeStart = in.readLong();
+        this.rangeLength = in.readLong();
 
         try {
             this.handler = SchemeHandlerFactory.getInstance().get(path);

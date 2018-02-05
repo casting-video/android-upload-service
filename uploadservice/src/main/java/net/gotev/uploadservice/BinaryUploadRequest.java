@@ -68,6 +68,22 @@ public class BinaryUploadRequest extends HttpUploadRequest<BinaryUploadRequest> 
         return this;
     }
 
+    /**
+     * Allows to upload a part of the file. Sets the start and length of the range going to be uploaded.
+     *
+     * @param start start of the range (in bytes)
+     * @param length length of the range (in bytes, -1 means all remaining data)
+     * @return {@link BinaryUploadRequest}
+     * @throws IndexOutOfBoundsException
+     */
+    public BinaryUploadRequest setRangeToUpload(long start, long length) throws IndexOutOfBoundsException {
+        if (params.files.isEmpty()) {
+            throw new IndexOutOfBoundsException("Call setFileToUpload() before setRangeToUplod()");
+        }
+        params.files.get(0).setRange(start, length, context);
+        return this;
+    }
+
     @Override
     public BinaryUploadRequest addParameter(String paramName, String paramValue) {
         logDoesNotSupportParameters();
