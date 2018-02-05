@@ -86,7 +86,7 @@ public abstract class UploadTask implements Runnable {
     /**
      * Start timestamp of this upload task.
      */
-    private final long startTime;
+    protected long startTime = 0;
 
     /**
      * Counter of the upload attempts that has been made;
@@ -108,10 +108,6 @@ public abstract class UploadTask implements Runnable {
      * Implement in subclasses to be able to do something when the upload is successful.
      */
     protected void onSuccessfulUpload() {}
-
-    public UploadTask() {
-        startTime = new Date().getTime();
-    }
 
     /**
      * Initializes the {@link UploadTask}.<br>
@@ -147,6 +143,7 @@ public abstract class UploadTask implements Runnable {
     public final void run() {
 
         isRunning = true;
+        startTime = new Date().getTime();
 
         createNotification(new UploadInfo(params.id));
 
