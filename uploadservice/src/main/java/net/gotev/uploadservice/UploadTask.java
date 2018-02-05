@@ -6,8 +6,6 @@ import android.app.NotificationManager;
 import android.content.Context;
 import android.content.Intent;
 import android.media.RingtoneManager;
-import android.net.ConnectivityManager;
-import android.net.NetworkInfo;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
@@ -96,15 +94,9 @@ public abstract class UploadTask implements Runnable {
     private int attempts;
 
     /**
-     * Whether the task is waiting for the network to be available.
-     * TODO synchronize access?
+     * Whether the task is executing on a thread pool.
      */
-    private boolean waitingForNetwork;
-
-    /**
-     * An instance of ConnectivityManager.
-     */
-    private ConnectivityManager connectivityManager;
+    private volatile boolean isRunning = false;
 
     /**
      * Implementation of the upload logic.
@@ -149,13 +141,12 @@ public abstract class UploadTask implements Runnable {
                 notificationManager.createNotificationChannel(channel);
             }
         }
-
-        this.connectivityManager = (ConnectivityManager) service.getSystemService(Context.CONNECTIVITY_SERVICE);
-        this.waitingForNetwork = !isNetworkSuitable();
     }
 
     @Override
     public final void run() {
+
+        isRunning = true;
 
         createNotification(new UploadInfo(params.id));
 
@@ -167,10 +158,6 @@ public abstract class UploadTask implements Runnable {
             attempts++;
 
             try {
-                waitingForNetwork = !isNetworkSuitable();
-                if (waitingForNetwork) {
-                    return;
-                }
                 upload();
                 break;
 
@@ -203,6 +190,8 @@ public abstract class UploadTask implements Runnable {
         if (!shouldContinue) {
             broadcastCancelled();
         }
+
+        isRunning = false;
     }
 
     /**
@@ -605,35 +594,8 @@ public abstract class UploadTask implements Runnable {
 
     public final void cancel() {
         this.shouldContinue = false;
-        if (waitingForNetwork) {
+        if (!isRunning) {
             broadcastCancelled();
         }
-    }
-
-    /**
-     * Checks whether the current network is suitable for running this task.
-     * @return boolean
-     */
-    private boolean isNetworkSuitable() {
-        NetworkInfo networkInfo = connectivityManager.getActiveNetworkInfo();
-        if (networkInfo == null || !networkInfo.isConnected()) {
-            return false;
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP
-            && params.getAvoidMeteredNetworks()
-            && connectivityManager.isActiveNetworkMetered()) {
-            return false;
-        } else {
-            // TODO API < 21
-        }
-        return true;
-    }
-
-    /**
-     * Tells if the task should not be started before a suitable network is available.
-     * @return boolean
-     */
-    public boolean isWaitingForNetwork() {
-        return waitingForNetwork;
     }
 }

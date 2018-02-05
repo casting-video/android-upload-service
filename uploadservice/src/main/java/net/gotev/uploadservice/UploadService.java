@@ -142,12 +142,7 @@ public final class UploadService extends Service {
     /**
      * An instance of ConnectivityManager.
      */
-    private ConnectivityManager connectivityManager;
-
-    /**
-     * An instance of ConnectivityManager.NetworkCallback
-     */
-    private ConnectivityManager.NetworkCallback networkCallback;
+    private ConnectivityManager connectivityManager = null;
 
     protected static String getActionUpload() {
         return NAMESPACE + ACTION_UPLOAD_SUFFIX;
@@ -246,33 +241,6 @@ public final class UploadService extends Service {
                 KEEP_ALIVE_TIME_IN_SECONDS,
                 TimeUnit.SECONDS,
                 uploadTasksQueue);
-
-        // Monitor for network changes
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            NetworkRequest.Builder builder = new NetworkRequest.Builder();
-            builder.addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET);
-            networkCallback = new ConnectivityManager.NetworkCallback() {
-                public void onAvailable(Network network) {
-                    // A network becomes available. When this happens, we need to check if there are any tasks with waitingForNetwork = true,
-                    // and run them.
-                    boolean networkIsNotMetered = connectivityManager
-                        .getNetworkCapabilities(network)
-                        .hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED);
-                    Iterator<String> iterator = uploadTasksMap.keySet().iterator();
-                    while (iterator.hasNext()) {
-                        UploadTask task = uploadTasksMap.get(iterator.next());
-                        if (task.isWaitingForNetwork()
-                            && (networkIsNotMetered || !task.params.getAvoidMeteredNetworks())) {
-                            uploadThreadPool.execute(task);
-                        }
-                    }
-                }
-            };
-            connectivityManager.registerNetworkCallback(builder.build(), networkCallback);
-
-        } else {
-            // TODO API < 21
-        }
     }
 
     @Override
@@ -316,9 +284,7 @@ public final class UploadService extends Service {
                    .setNotificationId(UPLOAD_NOTIFICATION_BASE_ID + notificationIncrementalId);
 
         uploadTasksMap.put(currentTask.params.id, currentTask);
-        if (!currentTask.isWaitingForNetwork()) {
-            uploadThreadPool.execute(currentTask);
-        }
+        scheduleTaskExecution(currentTask);
 
         return START_STICKY;
     }
@@ -369,13 +335,6 @@ public final class UploadService extends Service {
 
         uploadTasksMap.clear();
         uploadDelegates.clear();
-
-        // unregister network state listener
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            connectivityManager.unregisterNetworkCallback(networkCallback);
-        } else {
-            // TODO API < 21
-        }
 
         Logger.debug(TAG, "UploadService destroyed");
     }
@@ -495,5 +454,35 @@ public final class UploadService extends Service {
         }
 
         return delegate;
+    }
+
+    /**
+     * Starts the task after its start conditions are satisfied. Currently, the conditions are:
+     * 1. Any task will wait for a network to be available.
+     * 2. Tasks with "avoidMeteringNetwork" parameter will wait for a non-metered network to be available.
+     * @param task task to be executed.
+     */
+    private void scheduleTaskExecution(final UploadTask task) {
+        if (connectivityManager == null) {
+            connectivityManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            NetworkRequest.Builder builder = new NetworkRequest.Builder();
+            builder.addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET);
+            if (task.params.getAvoidMeteredNetworks()) {
+                builder.addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED);
+                Logger.debug(TAG, "Task " + task.params.id + " will run as soon as a non-metered network is available");
+            }
+            connectivityManager.requestNetwork(builder.build(), new ConnectivityManager.NetworkCallback() {
+                public void onAvailable(Network network) {
+                    uploadThreadPool.execute(task);
+                }
+            });
+
+        } else {
+            // TODO API < 21
+            uploadThreadPool.execute(task);
+        }
     }
 }
