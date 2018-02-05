@@ -140,7 +140,7 @@ public final class UploadService extends Service {
     private ThreadPoolExecutor uploadThreadPool;
     private Timer idleTimer = null;
     private static final Map<String, ConnectivityManager.NetworkCallback> networkCallbacks = new ConcurrentHashMap<>();
-    private Handler handler = null;
+    private Handler handler = new Handler();
 
     /**
      * An instance of ConnectivityManager.
@@ -488,9 +488,6 @@ public final class UploadService extends Service {
     private void scheduleTaskExecution(final UploadTask task) {
         if (connectivityManager == null) {
             connectivityManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
-        }
-        if (handler == null) {
-            handler = new Handler();
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
