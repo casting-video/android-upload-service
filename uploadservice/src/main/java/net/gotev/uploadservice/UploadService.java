@@ -11,6 +11,7 @@ import android.net.Network;
 import android.os.Build;
 import android.os.IBinder;
 import android.os.PowerManager;
+import android.os.Handler;
 
 import net.gotev.uploadservice.http.HttpStack;
 import net.gotev.uploadservice.http.impl.HurlStack;
@@ -139,6 +140,7 @@ public final class UploadService extends Service {
     private ThreadPoolExecutor uploadThreadPool;
     private Timer idleTimer = null;
     private static final Map<String, ConnectivityManager.NetworkCallback> networkCallbacks = new ConcurrentHashMap<>();
+    private Handler handler = null;
 
     /**
      * An instance of ConnectivityManager.
@@ -487,6 +489,9 @@ public final class UploadService extends Service {
         if (connectivityManager == null) {
             connectivityManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
         }
+        if (handler == null) {
+            handler = new Handler();
+        }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             NetworkRequest.Builder builder = new NetworkRequest.Builder();
@@ -497,9 +502,14 @@ public final class UploadService extends Service {
             }
             ConnectivityManager.NetworkCallback callback = new ConnectivityManager.NetworkCallback() {
                 public void onAvailable(Network network) {
-                    if (uploadTasksMap.containsKey(task.params.id)) {
-                        uploadThreadPool.execute(task);
-                    }
+                    // For some reason, the network is not reachable right after the onAvailable event. Wait 2 seconds.
+                    handler.postDelayed(new Runnable() {
+                        public void run() {
+                            if (uploadTasksMap.containsKey(task.params.id)) {
+                                uploadThreadPool.execute(task);
+                            }
+                        }
+                    }, 2000);
                 }
             };
             connectivityManager.requestNetwork(builder.build(), callback);
