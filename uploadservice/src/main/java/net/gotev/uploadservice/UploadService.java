@@ -138,6 +138,7 @@ public final class UploadService extends Service {
     private static volatile String foregroundUploadId = null;
     private ThreadPoolExecutor uploadThreadPool;
     private Timer idleTimer = null;
+    private static final Map<String, ConnectivityManager.NetworkCallback> networkCallbacks = new ConcurrentHashMap<>();
 
     /**
      * An instance of ConnectivityManager.
@@ -322,6 +323,15 @@ public final class UploadService extends Service {
     public void onDestroy() {
         super.onDestroy();
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            for (ConnectivityManager.NetworkCallback callback : networkCallbacks.values()) {
+                connectivityManager.unregisterNetworkCallback(callback);
+            }
+            networkCallbacks.clear();
+        } else {
+            // TODO API < 21
+        }
+
         stopAllUploads();
         uploadThreadPool.shutdown();
 
@@ -403,6 +413,16 @@ public final class UploadService extends Service {
         uploadTasksQueue.remove(task);
         uploadDelegates.remove(uploadId);
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            ConnectivityManager.NetworkCallback callback = networkCallbacks.get(uploadId);
+            if (callback != null) {
+                connectivityManager.unregisterNetworkCallback(callback);
+                networkCallbacks.remove(uploadId);
+            }
+        } else {
+            // TODO API < 21
+        }
+
         // un-hold foreground upload ID if it's been hold
         if (EXECUTE_IN_FOREGROUND && task != null && task.params.id.equals(foregroundUploadId)) {
             Logger.debug(TAG, uploadId + " now un-holded the foreground notification");
@@ -475,11 +495,15 @@ public final class UploadService extends Service {
                 builder.addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED);
                 Logger.debug(TAG, "Task " + task.params.id + " will run as soon as a non-metered network is available");
             }
-            connectivityManager.requestNetwork(builder.build(), new ConnectivityManager.NetworkCallback() {
+            ConnectivityManager.NetworkCallback callback = new ConnectivityManager.NetworkCallback() {
                 public void onAvailable(Network network) {
-                    uploadThreadPool.execute(task);
+                    if (uploadTasksMap.containsKey(task.params.id)) {
+                        uploadThreadPool.execute(task);
+                    }
                 }
-            });
+            };
+            connectivityManager.requestNetwork(builder.build(), callback);
+            networkCallbacks.put(task.params.id, callback);
 
         } else {
             // TODO API < 21
