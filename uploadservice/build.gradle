@@ -38,6 +38,7 @@ def supportLibraryVersion = "26.0.2"
 dependencies {
     compile "com.android.support:appcompat-v7:${supportLibraryVersion}"
     compile "com.android.support:support-v4:${supportLibraryVersion}"
+    compile 'com.google.guava:guava:24.0-android'
 }
 
 // add the following information to the file: local.properties situated in the parent directory of
