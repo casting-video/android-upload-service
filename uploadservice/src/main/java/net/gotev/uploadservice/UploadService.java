@@ -400,6 +400,7 @@ public final class UploadService extends Service {
      */
     protected synchronized void taskCompleted(String uploadId) {
         UploadTask task = uploadTasksMap.remove(uploadId);
+        uploadTasksQueue.remove(task);
         uploadDelegates.remove(uploadId);
 
         // un-hold foreground upload ID if it's been hold
