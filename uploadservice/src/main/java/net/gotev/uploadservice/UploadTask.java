@@ -94,7 +94,7 @@ public abstract class UploadTask implements Runnable {
     private int attempts;
 
     /**
-     * Whether the task is executing on a thread pool.
+     * Whether the task is currently executing on a thread pool.
      */
     private volatile boolean isRunning = false;
 
@@ -145,18 +145,16 @@ public abstract class UploadTask implements Runnable {
     public final void run() {
 
         isRunning = true;
-        startTime = new Date().getTime();
+        attempts = 0;
+        int errorDelay = UploadService.INITIAL_RETRY_WAIT_TIME;
 
         createNotification(new UploadInfo(params.id));
-
-        attempts = 0;
-
-        int errorDelay = UploadService.INITIAL_RETRY_WAIT_TIME;
 
         while (attempts <= params.getMaxRetries() && shouldContinue) {
             attempts++;
 
             try {
+                startTime = new Date().getTime();
                 upload();
                 break;
 
