@@ -137,6 +137,8 @@ public abstract class UploadTask implements Runnable {
                 notificationManager.createNotificationChannel(channel);
             }
         }
+
+        service.updateSingleNotification(this, UploadLog.Status.WAITING);
     }
 
     @Override
@@ -254,6 +256,8 @@ public abstract class UploadTask implements Runnable {
         }
 
         updateNotificationProgress(uploadInfo);
+
+        service.updateSingleNotification(this, UploadLog.Status.UPLOADING);
     }
 
     /**
@@ -318,6 +322,7 @@ public abstract class UploadTask implements Runnable {
             service.sendBroadcast(data.getIntent());
         }
 
+        service.updateSingleNotification(this, successfulUpload ? UploadLog.Status.COMPLETED : UploadLog.Status.ERROR);
         service.taskCompleted(params.id);
     }
 
@@ -359,6 +364,7 @@ public abstract class UploadTask implements Runnable {
             service.sendBroadcast(data.getIntent());
         }
 
+        service.updateSingleNotification(this, UploadLog.Status.CANCELLED);
         service.taskCompleted(params.id);
     }
 
@@ -441,6 +447,7 @@ public abstract class UploadTask implements Runnable {
             service.sendBroadcast(data.getIntent());
         }
 
+        service.updateSingleNotification(this, UploadLog.Status.ERROR);
         service.taskCompleted(params.id);
     }
 

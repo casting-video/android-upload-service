@@ -13,6 +13,10 @@ import java.io.UnsupportedEncodingException;
  */
 public class BinaryUploadTask extends HttpUploadTask {
 
+    protected long getFileRangeStart() {
+        return params.files.get(0).rangeStart;
+    }
+
     @Override
     protected long getBodyLength() throws UnsupportedEncodingException {
         return params.files.get(0).length(service);

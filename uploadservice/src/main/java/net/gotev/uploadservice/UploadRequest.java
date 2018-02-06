@@ -101,6 +101,9 @@ public abstract class UploadRequest<B extends UploadRequest<B>> {
      * @return self instance
      */
     public B setNotificationConfig(UploadNotificationConfig config) {
+        if (UploadService.isSingleNotificationMode()) {
+            throw new java.lang.IllegalArgumentException("setNotificationConfig can not be used in single notification mode");
+        }
         params.notificationConfig = config;
         return self();
     }
