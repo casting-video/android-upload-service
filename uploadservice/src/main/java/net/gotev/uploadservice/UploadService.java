@@ -12,7 +12,6 @@ import android.os.Build;
 import android.os.IBinder;
 import android.os.PowerManager;
 import android.os.Handler;
-import android.app.NotificationManager;
 
 import net.gotev.uploadservice.http.HttpStack;
 import net.gotev.uploadservice.http.impl.HurlStack;
@@ -122,16 +121,6 @@ public final class UploadService extends Service {
      */
     public static long PROGRESS_REPORT_INTERVAL = 166;
 
-    /**
-     * For single notification mode. TODO annotations
-     */
-    abstract public static class NotificationDelegate {
-        abstract public boolean build(Notification.Builder builder, UploadLog uploadLog);
-    }
-    private static NotificationDelegate notificationDelegate = null;
-    private Notification singleNotification = null;
-    private final UploadLog uploadLog = new UploadLog();
-
     // constants used in the intent which starts this service
     private static final String ACTION_UPLOAD_SUFFIX = ".uploadservice.action.upload";
     protected static final String PARAM_TASK_PARAMETERS = "taskParameters";
@@ -153,7 +142,10 @@ public final class UploadService extends Service {
     private static final Map<String, ConnectivityManager.NetworkCallback> networkCallbacks = new ConcurrentHashMap<>();
     private final Handler handler = new Handler();
     private ConnectivityManager connectivityManager = null;
-    private NotificationManager notificationManager = null;
+
+    // for single notification mode
+    private static SingleNotification.Delegate singleNofiticationDelegate = null;
+    protected SingleNotification singleNotification = null;
 
     protected static String getActionUpload() {
         return NAMESPACE + ACTION_UPLOAD_SUFFIX;
@@ -245,6 +237,11 @@ public final class UploadService extends Service {
             UPLOAD_POOL_SIZE = Runtime.getRuntime().availableProcessors();
         }
 
+        // Create single notification processor
+        if (singleNofiticationDelegate != null) {
+            singleNotification = new SingleNotification(this, singleNofiticationDelegate);
+        }
+
         // Creates a thread pool manager
         uploadThreadPool = new ThreadPoolExecutor(
                 UPLOAD_POOL_SIZE,       // Initial pool size
@@ -297,8 +294,8 @@ public final class UploadService extends Service {
         uploadTasksMap.put(currentTask.params.id, currentTask);
         scheduleTaskExecution(currentTask);
 
-        if (EXECUTE_IN_FOREGROUND && isSingleNotificationMode()) {
-            startForeground(UPLOAD_NOTIFICATION_BASE_ID, buildSingleNotification());
+        if (EXECUTE_IN_FOREGROUND && singleNotification != null) {
+            singleNotification.startForeground();
         }
 
         return START_STICKY;
@@ -351,7 +348,7 @@ public final class UploadService extends Service {
 
         if (EXECUTE_IN_FOREGROUND) {
             Logger.debug(TAG, "Stopping foreground execution");
-            stopForeground(!isSingleNotificationMode());
+            stopForeground(true);
         }
 
         if (wakeLock.isHeld())
@@ -402,7 +399,7 @@ public final class UploadService extends Service {
      * @return true if the current upload task holds the foreground notification, otherwise false
      */
     protected synchronized boolean holdForegroundNotification(String uploadId, Notification notification) {
-        if (!EXECUTE_IN_FOREGROUND) return false;
+        if (!EXECUTE_IN_FOREGROUND || singleNotification != null) return false;
 
         if (foregroundUploadId == null) {
             foregroundUploadId = uploadId;
@@ -427,8 +424,6 @@ public final class UploadService extends Service {
         uploadTasksQueue.remove(task);
         uploadDelegates.remove(uploadId);
 
-        uploadLog.clear();
-
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             ConnectivityManager.NetworkCallback callback = networkCallbacks.get(uploadId);
             if (callback != null) {
@@ -447,7 +442,7 @@ public final class UploadService extends Service {
 
         if (EXECUTE_IN_FOREGROUND && uploadTasksMap.isEmpty()) {
             Logger.debug(TAG, "All tasks completed, stopping foreground execution");
-            stopForeground(!isSingleNotificationMode());
+            stopForeground(true);
             shutdownIfThereArentAnyActiveTasks();
         }
     }
@@ -535,49 +530,14 @@ public final class UploadService extends Service {
     /**
      * TODO annotation
      */
-    public static void setNotificationDelegate(NotificationDelegate delegate) {
-        notificationDelegate = delegate;
+    public static void enableSingleNotification(SingleNotification.Delegate delegate) {
+        singleNofiticationDelegate = delegate;
     }
 
     /**
      * TODO annotation
      */
-    public static boolean isSingleNotificationMode() {
-        return notificationDelegate != null;
-    }
-
-    /**
-     * TODO annotation
-     */
-    public void updateSingleNotification(UploadTask uploadTask, UploadLog.Status status) {
-        if (notificationManager == null) {
-            notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        }
-        uploadLog.addOrUpdateTask(uploadTask, status);
-        Notification notification = buildSingleNotification();
-        if (notification != null) {
-            notificationManager.notify(UPLOAD_NOTIFICATION_BASE_ID, notification);
-        } else {
-            notificationManager.cancel(UPLOAD_NOTIFICATION_BASE_ID);
-        }
-    }
-
-    /**
-     * TODO annotation
-     */
-    private Notification buildSingleNotification() {
-        Notification.Builder builder = new Notification.Builder(this)
-            .setContentTitle("Upload")
-            .setContentText("Uploading files")
-            .setSmallIcon(android.R.drawable.ic_menu_upload)
-            .setOngoing(!uploadTasksMap.isEmpty());
-        if (notificationDelegate != null) {
-            synchronized (uploadLog) {
-                if (!notificationDelegate.build(builder, uploadLog)) {
-                    return singleNotification = null;
-                }
-            }
-        }
-        return singleNotification = builder.build();
+    public static boolean isSingleNotificationEnabled() {
+        return singleNofiticationDelegate != null;
     }
 }

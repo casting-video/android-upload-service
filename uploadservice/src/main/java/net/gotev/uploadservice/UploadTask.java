@@ -137,8 +137,6 @@ public abstract class UploadTask implements Runnable {
                 notificationManager.createNotificationChannel(channel);
             }
         }
-
-        service.updateSingleNotification(this, UploadLog.Status.WAITING);
     }
 
     @Override
@@ -223,39 +221,39 @@ public abstract class UploadTask implements Runnable {
     protected final void broadcastProgress(final long uploadedBytes, final long totalBytes) {
 
         long currentTime = System.currentTimeMillis();
-        if (uploadedBytes < totalBytes && currentTime < lastProgressNotificationTime + UploadService.PROGRESS_REPORT_INTERVAL) {
-            return;
-        }
+        if (uploadedBytes >= totalBytes || currentTime >= lastProgressNotificationTime + UploadService.PROGRESS_REPORT_INTERVAL) {
+            setLastProgressNotificationTime(currentTime);
 
-        setLastProgressNotificationTime(currentTime);
+            Logger.debug(LOG_TAG, "Broadcasting upload progress for " + params.id
+                + ": " + uploadedBytes + " bytes of " + totalBytes);
 
-        Logger.debug(LOG_TAG, "Broadcasting upload progress for " + params.id
-                              + ": " + uploadedBytes + " bytes of " + totalBytes);
+            final UploadInfo uploadInfo = new UploadInfo(params.id, startTime, uploadedBytes,
+                totalBytes, (attempts - 1),
+                successfullyUploadedFiles,
+                pathStringListFrom(params.files));
 
-        final UploadInfo uploadInfo = new UploadInfo(params.id, startTime, uploadedBytes,
-                                                     totalBytes, (attempts - 1),
-                                                     successfullyUploadedFiles,
-                                                     pathStringListFrom(params.files));
-
-        BroadcastData data = new BroadcastData()
+            BroadcastData data = new BroadcastData()
                 .setStatus(BroadcastData.Status.IN_PROGRESS)
                 .setUploadInfo(uploadInfo);
 
-        final UploadStatusDelegate delegate = UploadService.getUploadStatusDelegate(params.id);
-        if (delegate != null) {
-            mainThreadHandler.post(new Runnable() {
-                @Override
-                public void run() {
-                    delegate.onProgress(service, uploadInfo);
-                }
-            });
-        } else {
-            service.sendBroadcast(data.getIntent());
+            final UploadStatusDelegate delegate = UploadService.getUploadStatusDelegate(params.id);
+            if (delegate != null) {
+                mainThreadHandler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        delegate.onProgress(service, uploadInfo);
+                    }
+                });
+            } else {
+                service.sendBroadcast(data.getIntent());
+            }
+
+            updateNotificationProgress(uploadInfo);
         }
 
-        updateNotificationProgress(uploadInfo);
-
-        service.updateSingleNotification(this, UploadLog.Status.UPLOADING);
+        if (service.singleNotification != null) {
+            service.singleNotification.update(this, SingleNotification.UploadStatus.UPLOADING);
+        }
     }
 
     /**
@@ -320,7 +318,10 @@ public abstract class UploadTask implements Runnable {
             service.sendBroadcast(data.getIntent());
         }
 
-        service.updateSingleNotification(this, successfulUpload ? UploadLog.Status.COMPLETED : UploadLog.Status.ERROR);
+        if (service.singleNotification != null) {
+            service.singleNotification.update(this,
+                successfulUpload ? SingleNotification.UploadStatus.COMPLETED : SingleNotification.UploadStatus.ERROR);
+        }
         service.taskCompleted(params.id);
     }
 
@@ -362,7 +363,9 @@ public abstract class UploadTask implements Runnable {
             service.sendBroadcast(data.getIntent());
         }
 
-        service.updateSingleNotification(this, UploadLog.Status.CANCELLED);
+        if (service.singleNotification != null) {
+            service.singleNotification.update(this, SingleNotification.UploadStatus.CANCELLED);
+        }
         service.taskCompleted(params.id);
     }
 
@@ -373,7 +376,7 @@ public abstract class UploadTask implements Runnable {
     protected final void addSuccessfullyUploadedFile(UploadFile file) {
         if (!successfullyUploadedFiles.contains(file.path)) {
             successfullyUploadedFiles.add(file.path);
-            params.files.remove(file);
+            // TODO params.files.remove(file);
         }
     }
 
@@ -388,7 +391,7 @@ public abstract class UploadTask implements Runnable {
             if (!successfullyUploadedFiles.contains(file.path)) {
                 successfullyUploadedFiles.add(file.path);
             }
-            iterator.remove();
+            // TODO iterator.remove();
         }
     }
 
@@ -445,7 +448,9 @@ public abstract class UploadTask implements Runnable {
             service.sendBroadcast(data.getIntent());
         }
 
-        service.updateSingleNotification(this, UploadLog.Status.ERROR);
+        if (service.singleNotification != null) {
+            service.singleNotification.update(this, SingleNotification.UploadStatus.ERROR);
+        }
         service.taskCompleted(params.id);
     }
 

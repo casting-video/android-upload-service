@@ -36,6 +36,14 @@ public abstract class HttpUploadTask extends UploadTask
     protected void init(UploadService service, Intent intent) throws IOException {
         super.init(service, intent);
         this.httpParams = intent.getParcelableExtra(HttpUploadTaskParameters.PARAM_HTTP_TASK_PARAMETERS);
+
+        if (service.singleNotification != null) {
+            // Set uploadedBytes/totalBytes here so the progress calculation in single notification mode can take waiting tasks into account
+            uploadedBytes = 0;
+            totalBytes = getBodyLength();
+            service.singleNotification.update(this, SingleNotification.UploadStatus.WAITING);
+            // TODO this should happen for any upload tasks, not only HttpUploadTask
+        }
     }
 
     /**
