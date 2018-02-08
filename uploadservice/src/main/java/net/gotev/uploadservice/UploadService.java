@@ -509,6 +509,7 @@ public final class UploadService extends Service {
             ConnectivityManager.NetworkCallback callback = new ConnectivityManager.NetworkCallback() {
                 public void onAvailable(Network network) {
                     // For some reason, the network is not reachable right after the onAvailable event. Wait 2 seconds.
+                    // TODO pass the network object further to the stack and make all operations use it explicitly
                     handler.postDelayed(new Runnable() {
                         public void run() {
                             if (uploadTasksMap.containsKey(task.params.id)) {
