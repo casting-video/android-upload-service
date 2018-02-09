@@ -230,9 +230,6 @@ public final class UploadService extends Service {
         wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, TAG);
         wakeLock.setReferenceCounted(false);
 
-        if (!wakeLock.isHeld())
-            wakeLock.acquire();
-
         if (UPLOAD_POOL_SIZE <= 0) {
             UPLOAD_POOL_SIZE = Runtime.getRuntime().availableProcessors();
         }
@@ -292,7 +289,7 @@ public final class UploadService extends Service {
                    .setNotificationId(UPLOAD_NOTIFICATION_BASE_ID + notificationIncrementalId);
 
         uploadTasksMap.put(currentTask.params.id, currentTask);
-        scheduleTaskExecution(currentTask);
+        scheduleTask(currentTask);
 
         if (EXECUTE_IN_FOREGROUND && singleNotification != null) {
             singleNotification.startForeground();
@@ -351,8 +348,7 @@ public final class UploadService extends Service {
             stopForeground(true);
         }
 
-        if (wakeLock.isHeld())
-            wakeLock.release();
+        wakeLock.release();
 
         uploadTasksMap.clear();
         uploadDelegates.clear();
@@ -494,7 +490,7 @@ public final class UploadService extends Service {
      * 2. Tasks with "avoidMeteringNetwork" parameter will wait for a non-metered network to be available.
      * @param task task to be executed.
      */
-    private void scheduleTaskExecution(final UploadTask task) {
+    private void scheduleTask(final UploadTask task) {
         if (connectivityManager == null) {
             connectivityManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
         }
@@ -513,7 +509,7 @@ public final class UploadService extends Service {
                     handler.postDelayed(new Runnable() {
                         public void run() {
                             if (uploadTasksMap.containsKey(task.params.id)) {
-                                uploadThreadPool.execute(task);
+                                startTask(task);
                             }
                         }
                     }, 2000);
@@ -524,8 +520,18 @@ public final class UploadService extends Service {
 
         } else {
             // TODO API < 21
-            uploadThreadPool.execute(task);
+            startTask(task);
         }
+    }
+
+    /**
+     * Puts the task immediately to the execution queue. The task will be executed immediately if there is an idle worker thread in uploadPool,
+     * or as soon as a thread becomes available.
+     * @param task task to be executed.
+     */
+    private void startTask(final UploadTask task) {
+        wakeLock.acquire();
+        uploadThreadPool.execute(task);
     }
 
     /**
