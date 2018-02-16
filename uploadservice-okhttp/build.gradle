@@ -14,7 +14,6 @@ def sdkVersion = 26
 
 android {
     compileSdkVersion sdkVersion
-    buildToolsVersion '26.0.2'
 
     defaultConfig {
         minSdkVersion 16
