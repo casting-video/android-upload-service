@@ -2,6 +2,7 @@ package net.gotev.uploadservice;
 
 import android.content.Context;
 import android.content.Intent;
+import android.os.Build;
 
 import java.util.UUID;
 
@@ -65,7 +66,13 @@ public abstract class UploadRequest<B extends UploadRequest<B>> {
         final Intent intent = new Intent(context, UploadService.class);
         this.initializeIntent(intent);
         intent.setAction(UploadService.getActionUpload());
-        context.startService(intent);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            // Android O has specific requirements for starting services while the app is in background:
+            // see https://developer.android.com/about/versions/oreo/background.html#services
+            context.startForegroundService(intent);
+        } else {
+            context.startService(intent);
+        }
 
         return params.id;
     }

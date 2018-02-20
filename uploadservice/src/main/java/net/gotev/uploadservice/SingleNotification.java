@@ -17,7 +17,7 @@ public class SingleNotification {
 
     abstract public static class Delegate {
         abstract public boolean build(Notification.Builder builder, UploadLog uploadLog);
-        abstract public void buildChannel(NotificationChannel channel);
+        abstract public void buildChannel(NotificationChannel channel, boolean isCompletion);
 
         public boolean shouldResetStats(UploadLog uploadLog) {
             return !uploadLog.hasRunningTasks();
@@ -127,27 +127,41 @@ public class SingleNotification {
 
     private static final int progressNotificationId = 1498;
     private static final int completeNotificationId = 1499;
-    private static final String channelId = UploadService.NAMESPACE;
-    private static final String channelName = UploadService.NAMESPACE;
     private static final int updateInterval = 1000;  // in milliseconds
+
+    // Android O notification channels. Two channels are used, #1 for in-progress notifications (silent by default), and #2 for
+    // сompletion notifications (with sound by default).
+    private static final String channelId1 = UploadService.NAMESPACE + ".channelProgress";
+    private static final String channelId2 = UploadService.NAMESPACE + ".channelCompletion";
+    private static final String channelName1 = UploadService.NAMESPACE + " (progress)";
+    private static final String channelName2 = UploadService.NAMESPACE + " (completion)";
 
     protected SingleNotification(UploadService service, Delegate delegate) {
         this.service = service;
         this.delegate = delegate;
         notificationManager = (NotificationManager) service.getSystemService(Context.NOTIFICATION_SERVICE);
 
-        // Create Android O notification channel
+        // Create Android O notification channels
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            if (notificationManager.getNotificationChannel(channelId) == null) {
-                NotificationChannel channel = new NotificationChannel(channelId, channelName, NotificationManager.IMPORTANCE_DEFAULT);
+            // 1. channel for in-progress notifications
+            if (notificationManager.getNotificationChannel(channelId1) == null) {
+                NotificationChannel channel = new NotificationChannel(channelId1, channelName1, NotificationManager.IMPORTANCE_LOW);
+                // call to the delegate which can set more settings
+                delegate.buildChannel(channel, false);
+                notificationManager.createNotificationChannel(channel);
+            }
+
+            // 2. channel for completion notifications (with sound)
+            if (notificationManager.getNotificationChannel(channelId2) == null) {
+                NotificationChannel channel = new NotificationChannel(channelId2, channelName2, NotificationManager.IMPORTANCE_DEFAULT);
                 // sound
                 AudioAttributes audioAttributes = new AudioAttributes.Builder()
                     .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                     .setUsage(AudioAttributes.USAGE_NOTIFICATION)
                     .build();
                 channel.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION), audioAttributes);
-                // call to the delegate which can set more settings
-                delegate.buildChannel(channel);
+                // call to the delegate
+                delegate.buildChannel(channel, true);
                 notificationManager.createNotificationChannel(channel);
             }
         }
@@ -179,15 +193,11 @@ public class SingleNotification {
     protected synchronized Notification build() {
         UploadLog.Stats stats = uploadLog.getStats();
         boolean inProgress = uploadLog.hasRunningTasks();
+        boolean completionNotification = false;
 
         Notification.Builder builder = new Notification.Builder(service)
             .setSmallIcon(inProgress ? android.R.drawable.stat_sys_upload : android.R.drawable.stat_sys_upload_done)
             .setOngoing(inProgress);
-
-        // Android O notification channel
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            builder.setChannelId(channelId);
-        }
 
         if (stats.filesUploading > 0) {
             int filesTotal = stats.filesCompleted + stats.filesWaiting + stats.filesUploading;
@@ -226,6 +236,13 @@ public class SingleNotification {
                     builder.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION));
                 }
             }
+
+            completionNotification = true;
+        }
+
+        // Android O notification channel
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            builder.setChannelId(completionNotification ? channelId2 : channelId1);
         }
 
         // call the delegate to modify default notification settings
