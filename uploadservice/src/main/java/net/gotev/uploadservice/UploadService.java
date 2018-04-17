@@ -515,7 +515,15 @@ public final class UploadService extends Service {
                     }, 2000);
                 }
             };
-            connectivityManager.requestNetwork(builder.build(), callback);
+            try {
+                connectivityManager.requestNetwork(builder.build(), callback);
+            } catch (java.lang.SecurityException e) {
+                // Android 6.0 - requestNetwork() throw SecurityException because CHANGE_NETWORK_STATE is not granted automatically
+                // (https://stackoverflow.com/questions/32185628/connectivitymanager-requestnetwork-in-android-6-0).
+                // Start the task without requestNetwork.
+                startTask(task);
+                return;
+            }
             networkCallbacks.put(task.params.id, callback);
 
         } else {
