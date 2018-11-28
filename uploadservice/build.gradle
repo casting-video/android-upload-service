@@ -1,3 +1,7 @@
+def safeExtGet(prop, fallback) {
+    rootProject.ext.has(prop) ? rootProject.ext.get(prop) : fallback
+}
+
 apply plugin: 'com.android.library'
 apply plugin: 'com.github.dcendents.android-maven'
 apply plugin: 'com.jfrog.bintray'
@@ -10,14 +14,12 @@ def projectGroup = "net.gotev"
 group = projectGroup
 version = "3.4.2"
 
-def sdkVersion = 26
-
 android {
-    compileSdkVersion sdkVersion
+    compileSdkVersion safeExtGet('compileSdkVersion', 27)
 
     defaultConfig {
-        minSdkVersion 16
-        targetSdkVersion sdkVersion
+        minSdkVersion safeExtGet('minSdkVersion', 16)
+        targetSdkVersion safeExtGet('targetSdkVersion', 27)
         versionCode 30
         versionName version
     }
@@ -32,11 +34,9 @@ android {
     }
 }
 
-def supportLibraryVersion = "27.0.2"
-
 dependencies {
-    compile "com.android.support:appcompat-v7:${supportLibraryVersion}"
-    compile "com.android.support:support-v4:${supportLibraryVersion}"
+    compile "com.android.support:appcompat-v7:${safeExtGet('supportLibVersion', '27.1.1')}"
+    compile "com.android.support:support-v4:${safeExtGet('supportLibVersion', '27.1.1')}"
     compile 'com.google.guava:guava:24.0-android'
 }
 
