@@ -4,14 +4,6 @@ def safeExtGet(prop, fallback) {
 
 apply plugin: 'com.android.library'
 
-def siteUrl = 'https://github.com/gotev/android-upload-service'
-def gitUrl = 'https://github.com/gotev/android-upload-service.git'
-def projectName = "android-upload-service"
-def projectDesc = "Easily upload files in the background with automatic Android Notification Center progress indication."
-def projectGroup = "net.gotev"
-group = projectGroup
-version = "3.4.2"
-
 android {
     compileSdkVersion safeExtGet('compileSdkVersion', 27)
 

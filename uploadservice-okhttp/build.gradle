@@ -1,15 +1,5 @@
 apply plugin: 'com.android.library'
 
-def siteUrl = 'https://github.com/gotev/android-upload-service'
-def gitUrl = 'https://github.com/gotev/android-upload-service.git'
-def projectName = "android-upload-service-okhttp"
-def projectDesc = "OkHttp stack implementation for Android Upload Service."
-def projectGroup = "net.gotev"
-group = projectGroup
-version = "3.4.2"
-
-def sdkVersion = 26
-
 android {
     compileSdkVersion sdkVersion
 
